@@ -15,12 +15,17 @@ namespace Drench {
         GameWindow window;
         Square[,] board;
         Color[] colors;
+        Square root;
+
         float GridSize;
         float GridPosX;
         float GridPosY;
         float ControlSize;
         float ControlPosX;
         float ControlPosY;
+
+        TextRenderer renderer;
+        Font serif = new Font(FontFamily.GenericSerif, 24);
 
 
         public VisualDisplay(GameWindow window) {
@@ -64,6 +69,9 @@ namespace Drench {
                     board[x, y] = s;
                 }
             }
+            root = board[0, 0];
+            root.root = true;
+            root.rank = 99;
             for (int x = 0; x < 14; ++x) {
                 for (int y = 0; y < 14; ++y) {
                     Square s = board[x, y];
@@ -79,16 +87,59 @@ namespace Drench {
             public int x, y;
             public float xPos, yPos;
             public Square up, down, left, right;
-            public Color c;
+            public Color c = Color.White;
+            public Square parent;
+            public int rank = 0;
+            public bool root = false;
 
             public Square() {
-                c = Color.Black;
+                parent = this;
+            }
+
+            public void checkParents() {
+                checkParent(up);
+                checkParent(down);
+                checkParent(left);
+                checkParent(right);
+                if (this.root && !this.parent.root) {
+                    Console.WriteLine("Damn");
+                }
+            }
+
+            void checkParent(Square s) {
+                if (s != null && s.parent.c == this.parent.c)
+                    union(s);
+            }
+
+            public static Square find(Square x) {
+                if (x.parent != x) x.parent = find(x.parent);
+                return x.parent;
+            }
+
+            void union(Square x) {
+                Square xRoot = find(x);
+                Square yRoot = find(this);
+                if (xRoot == yRoot) return;
+                if (xRoot.rank < yRoot.rank) xRoot.parent = yRoot;
+                else if (xRoot.rank > yRoot.rank) yRoot.parent = xRoot;
+                else {
+                    yRoot.parent = xRoot;
+                    xRoot.rank++;
+                }
             }
         }
 
         void drench(int index) {
             Console.WriteLine(colors[index].Name);
-
+            root.c = colors[index];
+            bool done = true;
+            for (int x = 0; x < 14; ++x) {
+                for (int y = 0; y < 14; ++y) {
+                    board[x, y].checkParents();
+                    if (board[x, y].c != root.c) done = false;
+                }
+            }
+            if (done) return;
         }
 
 
@@ -96,7 +147,7 @@ namespace Drench {
             for (int x = 0; x < 14; ++x) {
                 for (int y = 0; y < 14; ++y) {
                     Square s = board[x,y];
-                    GL.Color3(s.c);
+                    GL.Color3(Square.find(s).c);
                     drawRect(s.xPos, s.yPos, GridSize - 1, GridSize - 1);
                 }
             }
@@ -171,6 +222,10 @@ namespace Drench {
         void window_RenderFrame(object sender, FrameEventArgs e) {
             GL.ClearColor(Color.Black);
             GL.Clear(ClearBufferMask.ColorBufferBit);
+            //GL.MatrixMode(MatrixMode.Modelview);
+            //GL.LoadIdentity();
+            GL.Enable(EnableCap.Texture2D);
+            GL.BindTexture(TextureTarget.Texture2D, renderer.Texture);
             DrawCanvas();
             DrawControls();
             window.SwapBuffers();
@@ -180,6 +235,13 @@ namespace Drench {
             window.WindowBorder = WindowBorder.Hidden;
             window.WindowState = WindowState.Fullscreen;
             GL.ClearColor(Color.Black);
+
+            renderer = new TextRenderer(window.Width, window.Height);
+            renderer.Clear(Color.Yellow);
+            PointF position = PointF.Empty;
+            position.X = 100;
+            position.Y = 100;
+            renderer.DrawString("Game Won!", serif, Brushes.Yellow, position);
         }
 
         void window_UpdateFrame(object sender, FrameEventArgs e) {
@@ -213,6 +275,7 @@ namespace Drench {
         }
 
         void window_Closed(object sender, EventArgs e) {
+            renderer.Dispose();
             Environment.Exit(0);
         }
     }
